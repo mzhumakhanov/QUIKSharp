@@ -1,3 +1,6 @@
+// Copyright (c) 2014-2020 QUIKSharp Authors https://github.com/finsight/QUIKSharp/blob/master/AUTHORS.md. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
 using Newtonsoft.Json;
 
 namespace QuikSharp.DataStructures
@@ -11,7 +14,7 @@ namespace QuikSharp.DataStructures
         /// Strike
         /// </summary>
         [JsonProperty("Strike")]
-        public int Strike { get; set; }
+        public double Strike { get; set; }
 
         /// <summary>
         /// Code
@@ -35,7 +38,7 @@ namespace QuikSharp.DataStructures
         /// Offer
         /// </summary>
         [JsonProperty("OFFER")]
-        public int OFFER { get; set; }
+        public double OFFER { get; set; }
 
         /// <summary>
         /// Longname
@@ -65,7 +68,7 @@ namespace QuikSharp.DataStructures
         /// Bid
         /// </summary>
         [JsonProperty("BID")]
-        public int BID { get; set; }
+        public double BID { get; set; }
 
         /// <summary>
         /// DaysToMatDate

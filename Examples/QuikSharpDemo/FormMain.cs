@@ -23,7 +23,7 @@ namespace QuikSharpDemo
         bool isServerConnected = false;
         bool isSubscribedToolOrderBook = false;
         bool isSubscribedToolCandles = false;
-        string secCode = "SiH0";
+        string secCode = "SiU0";
         string classCode = "";
         string clientCode;
         decimal bid;
@@ -40,7 +40,7 @@ namespace QuikSharpDemo
         List<MoneyLimit> listMoneyLimits;
         List<MoneyLimitEx> listMoneyLimitsEx;
         FormOutputTable toolCandlesTable;
-        FormOrderBook toolOrderBookTable;
+        //FormOrderBook toolOrderBookTable;
         Order order;
         FuturesLimits futLimit;
         FuturesClientHolding futuresPosition;
@@ -115,6 +115,10 @@ namespace QuikSharpDemo
                         buttonRun.Enabled = false;
                         buttonStart.Enabled = true;
                     }
+                    // для отладки
+                    //Trace.Listeners.Add(new TextWriterTraceListener(Console.Out));
+                    //Trace.Listeners.Add(new TextWriterTraceListener("TraceLogging.log"));
+                    // для отладки
                 }
                 catch
                 {
@@ -200,19 +204,10 @@ namespace QuikSharpDemo
         {
             if (quote.sec_code == tool.SecurityCode && quote.class_code == tool.ClassCode)
             {
-                renewOrderBookTime = DateTime.Now;
-                toolOrderBook = quote;
-                bid = Convert.ToDecimal(toolOrderBook.bid[toolOrderBook.bid.Count() - 1].price);
-                offer = Convert.ToDecimal(toolOrderBook.offer[0].price);
-                //try
-                //{
-                //    if (toolOrderBookTable != null) toolOrderBookTable.Renew(toolOrderBook);
-
-                //}
-                //catch (Exception er)
-                //{
-                //    Console.WriteLine("Ошибка вывода стакана: " + er.Message);
-                //}
+                renewOrderBookTime  = DateTime.Now;
+                toolOrderBook       = quote;
+                bid                 = Convert.ToDecimal(toolOrderBook.bid[toolOrderBook.bid.Count() - 1].price);
+                offer               = Convert.ToDecimal(toolOrderBook.offer[0].price);
             }
         }
         void OnFuturesClientHoldingDo(FuturesClientHolding futPos)
@@ -223,8 +218,6 @@ namespace QuikSharpDemo
         {
             AppendText2TextBox(textBoxLogsWindow, "Вызвано событие OnDepoLimit (изменение бумажного лимита)..." + Environment.NewLine);
             AppendText2TextBox(textBoxLogsWindow, "Заблокировано на покупку количества лотов - " + depLimit.LockedBuy + Environment.NewLine);
-            //textBoxLogsWindow.AppendText("Вызвано событие OnDepoLimit (изменение бумажного лимита)..." + Environment.NewLine);
-            //textBoxLogsWindow.AppendText("Заблокировано на покупку количества лотов - " + depLimit.LockedBuy + Environment.NewLine);
         }
         void OnParamDo(Param _param)
         {
@@ -234,6 +227,40 @@ namespace QuikSharpDemo
                 AppendText2TextBox(textBoxLogsWindow, "Вызвано событие OnParam. Актуальное значение параметра 'BID' = " + bid + Environment.NewLine);
             }
         }
+        void OnNewCandleDo(Candle _candle)
+        {
+            Trace.Assert(_candle != null, DateTime.Now + ": Trace: candle = NULL");
+            Trace.WriteLine(DateTime.Now + ": Trace: OnNewCandleDo()");
+            try
+            {
+                if (_candle.ClassCode == tool.ClassCode && _candle.SecCode == tool.SecurityCode && _candle.Interval == CandleInterval.M15)
+                {
+                    Trace.WriteLine("Trace: Получена новая свеча -  'Time' = " + DateTime.Now + ", 'TimeCandle' = " + (DateTime)_candle.Datetime + ", 'Open' = " + _candle.Open + ", 'Close' = " + _candle.Close);
+                    AppendText2TextBox(textBoxLogsWindow, "Получена новая свеча: 'Time' = " + DateTime.Now + ", 'TimeCandle' = " + (DateTime)_candle.Datetime + ", 'Open' = " + _candle.Open + ", 'Close' = " + _candle.Close + Environment.NewLine);
+                }
+            }
+            catch (Exception er)
+            {
+                Trace.WriteLine("Trace: Ошибка в OnNewCandleDo() - " + er.ToString());
+            }
+        }
+        void OnStopOrderDo(StopOrder _stopOrder)
+        {
+            Trace.Assert(_stopOrder != null, DateTime.Now + ": Trace: stopOrder = NULL");
+            Trace.WriteLine(DateTime.Now + ": Trace: OnStopOrderDo()");
+            try
+            {
+                if (_stopOrder != null && _stopOrder.OrderNum > 0)
+                {
+                    Trace.WriteLine("Trace: Вызвано событие OnStopOrder - 'Time' = " + DateTime.Now + ", 'OrderNum' = " + _stopOrder.OrderNum + ", 'State' = " + _stopOrder.State);
+                    AppendText2TextBox(textBoxLogsWindow, "Вызвано событие OnStopOrder - 'Time' = " + DateTime.Now + ", 'OrderNum' = " + _stopOrder.OrderNum + ", 'State' = " + _stopOrder.State + Environment.NewLine);
+                }
+            }
+            catch (Exception er)
+            {
+                Trace.WriteLine("Trace: Ошибка в OnStopOrderDo() - " + er.ToString());
+            }
+        }
 
         private void TimerRenewForm_Tick(object sender, EventArgs e)
         {
@@ -241,13 +268,12 @@ namespace QuikSharpDemo
             textBoxQty.Text = Convert.ToString(GetPositionT2(_quik, tool, clientCode));
             if (toolOrderBook != null && toolOrderBook.bid != null)
             {
-                //textBoxBestBid.Text = bid.ToString();
-                //textBoxBestOffer.Text = offer.ToString();
                 Text2TextBox(textBox_RenewTime, renewOrderBookTime.ToLongTimeString());
                 Text2TextBox(textBoxBestBid, bid.ToString());
                 Text2TextBox(textBoxBestOffer, offer.ToString());
             }
-            if (futuresPosition != null) textBoxVarMargin.Text = futuresPosition.varMargin.ToString(); 
+            if (futuresPosition != null) textBoxVarMargin.Text = futuresPosition.varMargin.ToString();
+            //Trace.Flush();
         }
         private void ListBoxCommands_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -255,7 +281,7 @@ namespace QuikSharpDemo
             switch (selectedCommand)
             {
                 case "Получить исторические данные":
-                    textBoxDescription.Text = "Получить и отобразить исторические данные котировок по заданному инструменту. Тайм-фрейм = 1 Hour";
+                    textBoxDescription.Text = "Получить и отобразить исторические данные котировок по заданному инструменту. Тайм-фрейм = 15 Minute";
                     break;
                 case "Выставить лимитрированную заявку (без сделки)":
                     textBoxDescription.Text = "Будет выставлена заявку на покупку 1-го лота заданного инструмента, по цене на 5% ниже текущей цены (вероятность срабатывания такой заявки достаточно низкая, чтобы успеть ее отменить)";
@@ -324,16 +350,17 @@ namespace QuikSharpDemo
                     try
                     {
                         AppendText2TextBox(textBoxLogsWindow, "Подписываемся на получение исторических данных..." + Environment.NewLine);
-                        _quik.Candles.Subscribe(tool.ClassCode, tool.SecurityCode, CandleInterval.H1).Wait();
+                        _quik.Candles.Subscribe(tool.ClassCode, tool.SecurityCode, CandleInterval.M15).Wait();
                         AppendText2TextBox(textBoxLogsWindow, "Проверяем состояние подписки..." + Environment.NewLine);
-                        isSubscribedToolCandles = _quik.Candles.IsSubscribed(tool.ClassCode, tool.SecurityCode, CandleInterval.H1).Result;
+                        isSubscribedToolCandles = _quik.Candles.IsSubscribed(tool.ClassCode, tool.SecurityCode, CandleInterval.M15).Result;
                         if (isSubscribedToolCandles)
                         {
                             AppendText2TextBox(textBoxLogsWindow, "Получаем исторические данные..." + Environment.NewLine);
-                            toolCandles = _quik.Candles.GetAllCandles(tool.ClassCode, tool.SecurityCode, CandleInterval.H1).Result;
+                            toolCandles = _quik.Candles.GetAllCandles(tool.ClassCode, tool.SecurityCode, CandleInterval.M15).Result;
                             AppendText2TextBox(textBoxLogsWindow, "Выводим исторические данные в таблицу..." + Environment.NewLine);
                             toolCandlesTable = new FormOutputTable(toolCandles);
                             toolCandlesTable.Show();
+                            _quik.Candles.NewCandle += OnNewCandleDo;
                         }
                         else AppendText2TextBox(textBoxLogsWindow, "Неудачная попытка подписки на исторические данные." + Environment.NewLine);
                     }
@@ -431,10 +458,9 @@ namespace QuikSharpDemo
                     try
                     {
                         AppendText2TextBox(textBoxLogsWindow, "Получаем таблицу информации..." + Environment.NewLine);
-                        listSecurityInfo = new List<SecurityInfo>();
-                        listSecurityInfo.Add(_quik.Class.GetSecurityInfo(tool.ClassCode, tool.SecurityCode).Result);
+                        listSecurityInfo = new List<SecurityInfo> { _quik.Class.GetSecurityInfo(tool.ClassCode, tool.SecurityCode).Result };
 
-                        if (listDepoLimits.Count > 0)
+                        if (listSecurityInfo.Count > 0)
                         {
                             AppendText2TextBox(textBoxLogsWindow, "Выводим данные в таблицу..." + Environment.NewLine);
                             toolCandlesTable = new FormOutputTable(listSecurityInfo);
@@ -483,8 +509,7 @@ namespace QuikSharpDemo
 
                         if (futLimit != null)
                         {
-                            listFuturesLimits = new List<FuturesLimits>();
-                            listFuturesLimits.Add(futLimit);
+                            listFuturesLimits = new List<FuturesLimits> { futLimit };
                             AppendText2TextBox(textBoxLogsWindow, "Выводим данные лимитов в таблицу..." + Environment.NewLine);
                             toolCandlesTable = new FormOutputTable(listFuturesLimits);
                             toolCandlesTable.Show();
@@ -548,8 +573,7 @@ namespace QuikSharpDemo
                     try
                     {
                         AppendText2TextBox(textBoxLogsWindow, "Получаем таблицу денежных лимитов..." + Environment.NewLine);
-                        listMoneyLimits = new List<MoneyLimit>();
-                        listMoneyLimits.Add(_quik.Trading.GetMoney(clientCode, tool.FirmID, "EQTV", "SUR").Result);
+                        listMoneyLimits = new List<MoneyLimit> { _quik.Trading.GetMoney(clientCode, tool.FirmID, "EQTV", "SUR").Result };
 
                         if (listMoneyLimits.Count > 0)
                         {
@@ -559,8 +583,7 @@ namespace QuikSharpDemo
                         }
 
                         AppendText2TextBox(textBoxLogsWindow, "Получаем расширение таблицы денежных лимитов..." + Environment.NewLine);
-                        listMoneyLimitsEx = new List<MoneyLimitEx>();
-                        listMoneyLimitsEx.Add(_quik.Trading.GetMoneyEx(tool.FirmID, clientCode, "EQTV", "SUR", 2).Result);
+                        listMoneyLimitsEx = new List<MoneyLimitEx> { _quik.Trading.GetMoneyEx(tool.FirmID, clientCode, "EQTV", "SUR", 2).Result };
 
                         if (listMoneyLimitsEx.Count > 0)
                         {
@@ -661,24 +684,26 @@ namespace QuikSharpDemo
                 case "Выставить стоп-заявку типа тейк-профит и стоп-лимит":
                     try
                     {
+                        AppendText2TextBox(textBoxLogsWindow, "Подписываемся на событие OnStopOrder..." + Environment.NewLine);
+                        _quik.Events.OnStopOrder += OnStopOrderDo;
                         decimal priceInOrder = Math.Round(tool.LastPrice, tool.PriceAccuracy);
                         StopOrder orderNew = new StopOrder()
                         {
-                            Account = tool.AccountID,
-                            ClassCode = tool.ClassCode,
-                            ClientCode = clientCode,
-                            SecCode = secCode,
-                            Offset = 50,
-                            OffsetUnit = OffsetUnits.PRICE_UNITS,
-                            Spread = 0.5M,
-                            SpreadUnit = OffsetUnits.PERCENTS,
-                            StopOrderType = StopOrderType.TakeProfitStopLimit,
-                            Condition = Condition.LessOrEqual,
-                            ConditionPrice = Math.Round(priceInOrder - 50 * tool.Step, tool.PriceAccuracy),
+                            Account         = tool.AccountID,
+                            ClassCode       = tool.ClassCode,
+                            ClientCode      = clientCode,
+                            SecCode         = secCode,
+                            Offset          = 5,
+                            OffsetUnit      = OffsetUnits.PRICE_UNITS,
+                            Spread          = 0.1M,
+                            SpreadUnit      = OffsetUnits.PERCENTS,
+                            StopOrderType   = StopOrderType.TakeProfitStopLimit,
+                            Condition       = Condition.LessOrEqual,
+                            ConditionPrice  = Math.Round(priceInOrder - 50 * tool.Step, tool.PriceAccuracy),
                             ConditionPrice2 = Math.Round(priceInOrder + 40 * tool.Step, tool.PriceAccuracy),
-                            Price = Math.Round(priceInOrder + 45 * tool.Step, tool.PriceAccuracy),
-                            Operation = Operation.Buy,
-                            Quantity = 1
+                            Price           = Math.Round(priceInOrder + 45 * tool.Step, tool.PriceAccuracy),
+                            Operation       = Operation.Buy,
+                            Quantity        = 1
                         };
                         AppendText2TextBox(textBoxLogsWindow, "Выставляем стоп-заявку на покупку, по цене:" + priceInOrder + " ..." + Environment.NewLine);
                         long transID = await _quik.StopOrders.CreateStopOrder(orderNew).ConfigureAwait(false);
@@ -710,7 +735,6 @@ namespace QuikSharpDemo
             {
                 TextBoxTextDelegate d = new TextBoxTextDelegate(Text2TextBox);
                 _tb.Invoke(d, new object[] { _tb, _text });
-                //_tb.BeginInvoke(new Action(() => { _tb.Text = _text; }));
             }
             else _tb.Text = _text;
         }
@@ -751,25 +775,10 @@ namespace QuikSharpDemo
             return qty;
         }
         private void CheckBoxRemoteHost_CheckedChanged(object sender, EventArgs e) { textBoxHost.Enabled = checkBoxRemoteHost.Checked ? true : false; }
-        //long NewOrder(Quik _quik, Tool _tool, Operation operation, decimal price, int qty)
-        //{
-        //    long res = 0;
-        //    Order order_new = new Order();
-        //    order_new.ClassCode = _tool.ClassCode;
-        //    order_new.SecCode = _tool.SecurityCode;
-        //    order_new.Operation = operation;
-        //    order_new.Price = price;
-        //    order_new.Quantity = qty;
-        //    order_new.Account = _tool.AccountID;
-        //    try
-        //    {
-        //        res = _quik.Orders.CreateOrder(order_new).Result;
-        //    }
-        //    catch
-        //    {
-        //        Console.WriteLine("Неудачная попытка отправки заявки");
-        //    }
-        //    return res;
-        //}
+
+        private void FormMain_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            //Trace.Close();
+        }
     }
 }

@@ -1,4 +1,5 @@
---~ // Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+--~ Copyright (c) 2014-2020 QUIKSharp Authors https://github.com/finsight/QUIKSharp/blob/master/AUTHORS.md. All rights reserved.
+--~ Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
 local socket = require ("socket")
 local json = require ("dkjson")
@@ -9,7 +10,7 @@ function delay(msec)
     if sleep then
         pcall(sleep, msec)
     else
-        pcall(socket.select, nil, nil, msec / 1000)
+        -- pcall(socket.select, nil, nil, msec / 1000)
     end
 end
 
@@ -24,7 +25,88 @@ function timemsec()
     end
 end
 
-is_debug = true
+-- Returns the name of the file that calls this function (without extension)
+function scriptFilename()
+    -- Check that Lua runtime was built with debug information enabled
+    if not debug or not debug.getinfo then
+        return nil
+    end
+    local full_path = debug.getinfo(2, "S").source:sub(2)
+    return string.gsub(full_path, "^.*\\(.*)[.]lua[c]?$", "%1")
+end
+
+-- when true will show QUIK message for log(...,0)
+is_debug = false
+
+-- log files
+
+function openLog()
+    os.execute("mkdir \""..script_path.."\\logs\"")
+    local lf = io.open (script_path.. "\\logs\\QUIK#_"..os.date("%Y%m%d")..".log", "a")
+    if not lf then
+        lf = io.open (script_path.. "\\QUIK#_"..os.date("%Y%m%d")..".log", "a")
+    end
+    return lf
+end
+
+-- Returns contents of config.json file or nil if no such file exists
+function readConfigAsJson()
+    local conf = io.open (script_path.. "\\config.json", "r")
+    if not conf then
+        return nil
+    end
+    local content = conf:read "*a"
+    conf:close()
+    return from_json(content)
+end
+
+function paramsFromConfig(scriptName)
+    local params = {}
+    -- just default values
+    table.insert(params, "127.0.0.1") -- responseHostname
+    table.insert(params, 34130)       -- responsePort
+    table.insert(params, "127.0.0.1") -- callbackHostname
+    table.insert(params, 34131)       -- callbackPort
+
+    local config = readConfigAsJson()
+    if not config or not config.servers then
+        return nil
+    end
+    local found = false
+    for i=1,#config.servers do
+        local server = config.servers[i]
+        if server.scriptName == scriptName then
+            found = true
+            if server.responseHostname then
+                params[1] = server.responseHostname
+            end
+            if server.responsePort then
+                params[2] = server.responsePort
+            end
+            if server.callbackHostname then
+                params[3] = server.callbackHostname
+            end
+            if server.callbackPort then
+                params[4] = server.callbackPort
+            end
+        end
+    end
+
+    if found then
+        return params
+    else
+        return nil
+    end
+end
+
+-- closes log
+function closeLog()
+    if logfile then
+        pcall(logfile:close(logfile))
+    end
+end
+
+logfile = openLog()
 
 --- Write to log file and to Quik messages
 function log(msg, level)
@@ -38,8 +120,11 @@ function log(msg, level)
     if not level then level = 0 end
     local logLine = "LOG "..level..": "..msg
     print(logLine)
-    pcall(logfile.write, logfile, timemsec().." "..logLine.."\n")
-    pcall(logfile.flush, logfile)
+    local msecs = math.floor(math.fmod(timemsec(), 1000));
+    if logfile then
+        pcall(logfile.write, logfile, os.date("%Y-%m-%d %H:%M:%S").."."..msecs.." "..logLine.."\n")
+        pcall(logfile.flush, logfile)
+    end
 end
 
 
@@ -74,48 +159,16 @@ function to_json(msg)
     end
 end
 
--- log files
-os.execute("mkdir " .. "logs")
-logfile = io.open (script_path.. "/logs/QuikSharp.log", "a")
-missed_values_file = nil
-missed_values_file_name = nil
-
--- closes log
-function closeLog()
-	pcall(logfile:close(logfile))
-end
-
--- discards missed values if any
-function discardMissedValues()
-    if missed_values_file then
-        pcall(missed_values_file:close(missed_values_file))
-        missed_values_file = nil
-        pcall(os.remove, missed_values_file_name)
-        missed_values_file_name = nil
-    end
-end
-
 -- current connection state
 is_connected = false
---- indicates that QuikSharp was connected during this session
--- used to write missed values to a file and then resend them if a client reconnects
--- to avoid resending missed values, stop the script in Quik
-was_connected = false
-local port = 34130
-local callback_port = port + 1
--- we need two ports since callbacks and responses conflict and write to the same socket at the same time
--- I do not know how to make locking in Lua, it is just simpler to have two independent connections
--- To connect to a remote terminal - replace 'localhost' with the terminal ip-address
-local response_server = socket.bind('localhost', port, 1)
-local callback_server = socket.bind('localhost', callback_port, 1)
+local response_server
+local callback_server
 local response_client
 local callback_client
 
-
 --- accept client on server
 local function getResponseServer()
-    log('Waiting for a response client...', 1)
-	local i = 0
+    log('Waiting for a response client...', 0)
 	if not response_server then
 		log("Cannot bind to response_server, probably the port is already in use", 3)
 	else
@@ -131,8 +184,7 @@ local function getResponseServer()
 end
 
 local function getCallbackClient()
-    log('Waiting for a callback client...', 1)
-	local i = 0
+    log('Waiting for a callback client...', 0)
 	if not callback_server then
 		log("Cannot bind to callback_server, probably the port is already in use", 3)
 	else
@@ -147,9 +199,16 @@ local function getCallbackClient()
 	end
 end
 
-function qsutils.connect()
+function qsutils.connect(response_host, response_port, callback_host, callback_port)
+    if not response_server then
+        response_server = socket.bind(response_host, response_port, 1)
+    end
+    if not callback_server then
+        callback_server = socket.bind(callback_host, callback_port, 1)
+    end
+
     if not is_connected then
-        log('Connecting...', 1)
+        log('QUIK# is waiting for client connection...', 1)
         if response_client then
             log("is_connected is false but the response client is not nil", 3)
             -- Quik crashes without pcall
@@ -164,30 +223,14 @@ function qsutils.connect()
         callback_client = getCallbackClient()
         if response_client and callback_client then
             is_connected = true
-            was_connected = true
-            log('Connected!', 1)
-            if missed_values_file then
-                log("Loading values that a client missed during disconnect", 2)
-                missed_values_file:flush()
-                missed_values_file:close()
-                missed_values_file = nil
-				local previous_file_name = missed_values_file_name
-                missed_values_file_name = nil
-                for line in io.lines(previous_file_name) do
-					if not pcall(callback_client.send, callback_client, line..'\n') then
-						break
-					end
-                end
-                -- remove previous file
-                pcall(os.remove, previous_file_name)
-            end
+            log('QUIK# client connected', 1)
         end
     end
 end
 
 local function disconnected()
     is_connected = false
-    log('Disconnecting...', 1)
+    log('QUIK# client disconnected', 1)
     if response_client then
         pcall(response_client.close, response_client)
         response_client = nil
@@ -234,7 +277,6 @@ function sendResponse(msg_table)
     end
 end
 
-
 function sendCallback(msg_table)
     -- if not set explicitly then set CreatedTime "t" property here
     -- if not msg_table.t then msg_table.t = timemsec() end
@@ -248,15 +290,6 @@ function sendCallback(msg_table)
             return nil, err
         end
     end
-    -- we need this break instead of else because we could lose connection inside the previous if
-    --if not is_connected and was_connected then
-    --    if not missed_values_file then
-    --        missed_values_file_name = script_path .. "/logs/MissedCallbacks."..os.time()..".log"
-    --        missed_values_file = io.open(missed_values_file_name, "a")
-    --    end
-    --    missed_values_file:write(callback_string..'\n')
-    --    return nil, "Message added to the response queue"
-    --end
 end
 
 return qsutils

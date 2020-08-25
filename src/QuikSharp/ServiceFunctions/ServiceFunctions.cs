@@ -1,4 +1,5 @@
-﻿// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+﻿// Copyright (c) 2014-2020 QUIKSharp Authors https://github.com/finsight/QUIKSharp/blob/master/AUTHORS.md. All rights reserved.
+// Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
 using System;
 using System.Threading;
@@ -23,17 +24,11 @@ namespace QuikSharp
         /// <returns></returns>
         Task<bool> IsConnected(int timeout = Timeout.Infinite);
 
-		/// <summary>
-		/// Функция предназначена для для оповещения скрипта о том, что клиент собирается отсоединяться.
-		/// </summary>
-		/// <returns></returns>
-		Task<bool> PrepareToDisconnect(int timeout = Timeout.Infinite);
-
-		/// <summary>
-		/// Функция возвращает путь, по которому находится запускаемый скрипт, без завершающего обратного слэша («\»). Например, C:\QuikFront\Scripts
-		/// </summary>
-		/// <returns></returns>
-		Task<string> GetScriptPath();
+        /// <summary>
+        /// Функция возвращает путь, по которому находится запускаемый скрипт, без завершающего обратного слэша («\»). Например, C:\QuikFront\Scripts
+        /// </summary>
+        /// <returns></returns>
+        Task<string> GetScriptPath();
 
         /// <summary>
         /// Функция возвращает значения параметров информационного окна (пункт меню Связь / Информационное окно…).
@@ -114,14 +109,7 @@ namespace QuikSharp
             return response.Data == "1";
         }
 
-	    public async Task<bool> PrepareToDisconnect(int timeout = Timeout.Infinite)
-	    {
-		    await QuikService.Send<Message<string>>(
-			    (new Message<string>("", "prepareToDisconnect")), timeout).ConfigureAwait(false);
-		    return true;
-	    }
-
-		public async Task<string> GetScriptPath()
+        public async Task<string> GetScriptPath()
         {
             var response = await QuikService.Send<Message<string>>(
                 (new Message<string>("", "getScriptPath"))).ConfigureAwait(false);
@@ -157,6 +145,7 @@ namespace QuikSharp
                 default:
                     throw new ArgumentOutOfRangeException("iconType");
             }
+
             return true;
         }
 
@@ -170,7 +159,8 @@ namespace QuikSharp
         public async Task<double> AddLabel(double price, string curDate, string curTime, string hint, string path, string tag, string alignment, double backgnd)
         {
             var response = await QuikService.Send<Message<double>>(
-                (new Message<string>(price + "|" + curDate + "|" + curTime + "|" + hint + "|" + path + "|" + tag + "|" + alignment + "|" + backgnd, "addLabel"))).ConfigureAwait(false);
+                    (new Message<string>(price + "|" + curDate + "|" + curTime + "|" + hint + "|" + path + "|" + tag + "|" + alignment + "|" + backgnd, "addLabel")))
+                .ConfigureAwait(false);
             return response.Data;
         }
 
